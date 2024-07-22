@@ -1,8 +1,8 @@
 ﻿
 #include<iostream>
 #include<fstream>
-#include<string>	
-#include<string.h>	
+#include<string>		//Объявлен класс std::string
+#include<string.h>		//Объявлены функции для работы с NULL Trminated Lines
 using std::cin;
 using std::cout;
 using std::endl;
@@ -69,9 +69,12 @@ public:
 	}
 	virtual std::ofstream& print(std::ofstream& ofs)const
 	{
-		ofs.width(TYPE_WIDTH);	
-		ofs << std::left;	
-		ofs << std::string(strchr(typeid(*this).name(), ' ') + 1) + ":";	
+		ofs.width(TYPE_WIDTH);	//Метод width() задает ширину вывода
+								//При первом выводе метод width() включает выравнивание по правому краю
+		ofs << std::left;	//Возвращаем выравнивание по левому краю
+							//Один вызов цшвер() влияет на одно вводимое значение
+		ofs << std::string(strchr(typeid(*this).name(), ' ') + 1) + ":";	//Оператор typeid(type|valie) определяет тип значения на этапе выполнения программы
+																			//Метод name() возвращает C-string содержащую имя типа
 
 		ofs.width(LAST_NAME_WIDTH);
 		ofs << last_name;
@@ -80,6 +83,11 @@ public:
 		ofs.width(AGE_WIDTH);
 		ofs << age;
 		return ofs;
+	}
+	virtual std::ifstream& read(std::ifstream& ifs)
+	{
+		ifs >> last_name >> first_name >> age;
+		return ifs;
 	}
 };
 
@@ -90,6 +98,10 @@ std::ostream& operator<<(std::ostream& os, const Human& obj)
 std::ofstream& operator<<(std::ofstream& ofs, const Human& obj)
 {
 	return obj.print(ofs);
+}
+std::ifstream& operator>>(std::ifstream& ifs, Human& obj)
+{
+	return obj.read(ifs);
 }
 
 #define STUDENT_TAKE_PARAMETERS const std::string& speciality, const std::string& group, double rating, double attendance
@@ -171,6 +183,12 @@ public:
 		ofs << attendance;
 		return ofs;
 	}
+	std::ifstream& read(std::ifstream& ifs)override
+	{
+		Human::read(ifs);
+		ifs >> speciality >> group >> rating >> attendance;
+		return ifs;
+	}
 
 };
 
@@ -226,6 +244,17 @@ public:
 		ofs << experience;
 		return ofs;
 	}
+	std::ifstream& read(std::ifstream& ifs) override
+	{
+		Human::read(ifs);
+		char sz_speciality[SPECIALITY_WIDTH + 1]{}; //sz_speciality- String Zero (Строка, заканчивающаяся нулем)
+		ifs.read(sz_speciality, SPECIALITY_WIDTH);
+		for (int i = SPECIALITY_WIDTH - 2; sz_speciality[i] == ' '; i--)sz_speciality[i] = 0;
+		while (sz_speciality[0] == ' ') for (int i = 0; sz_speciality[i]; i++)sz_speciality[i] = sz_speciality[i + 1];
+		speciality = sz_speciality;
+		ifs >> experience;
+		return ifs;
+	}
 
 };
 #define GRADUATE_TAKE_PARAMETERS const std::string& subject
@@ -233,38 +262,30 @@ public:
 class Graduate :public Student
 {
 	std::string NameGraduateWork;
-	std::string objectResearch;
+	
 public:
 		const std::string& get_NameGraduateWork()const
 		{
 			return NameGraduateWork;
 		}
-		const std::string& get_objectResearch()const
-		{
-			return objectResearch;
-		}
+	
 		void set_NameGraduateWork(const std::string& NameGraduateWork)
 		{
 			this->NameGraduateWork = NameGraduateWork;
 		}
-		void set_objectResearch(const std::string& objectResearch)
-		{
-			this->objectResearch = objectResearch;
-		}
+	
 		// 		Constructor 
 		Graduate(HUMAN_TAKE_PARAMETERS, STUDENT_TAKE_PARAMETERS, GRADUATE_TAKE_PARAMETERS)
 			: Student(HUMAN_GIVE_PARAMETERS, STUDENT_GIVE_PARAMETERS)
 		{
 			set_NameGraduateWork(NameGraduateWork);
-			set_objectResearch(objectResearch);
 			cout << "GConstructor:\t" << this << endl;
 		}
-		Graduate(const Student& student, const std::string& NameGraduateWork, const std::string objectResearch) :
+		Graduate(const Student& student, const std::string& NameGraduateWork) :
 			Student(student)
 		{
 	
 			set_NameGraduateWork(NameGraduateWork);
-			set_objectResearch(objectResearch);
 			cout << "GConstructor:\t" << this << endl;
 		}
 		~Graduate()
@@ -277,7 +298,18 @@ public:
 	
 	std::ostream& print(std::ostream& os)const override
 	{
-		return Student::print(os) << NameGraduateWork << " " << objectResearch;
+		return Student::print(os) << NameGraduateWork ;
+	}
+	std::ofstream& print(std::ofstream& ofs) const override
+	{
+		Student::print(ofs) << NameGraduateWork;
+		return ofs;
+	}
+	std::ifstream& read(std::ifstream& ifs)override
+	{
+		Student::read(ifs);
+		std::getline(ifs, NameGraduateWork);
+		return ifs;
 	}
 };
 void Print(Human* group[], const int n)
@@ -310,7 +342,17 @@ Human* HumanFactory(const std::string& type)
 	Human* human = nullptr;
 	if (type == "Human:") human = new Human(" ", "", 0);
 	if (type == "Teacher:")human = new Teacher("", "", 0, "", 0);
-	if(type=="Student:")human = new Student("","",0,"")
+	if (type == "Student:")human = new Student("", "", 0, "", "", 0, 0);
+	if (type == "Graduate:")human = new Graduate("", "", 0, "", "", 0, 0, "");
+	return human;
+}
+bool NotAppropriteType(const std::string& buffer)
+{
+	//Несоответсвующий тип
+	return buffer.find("Human:") == std::string::npos &&
+		buffer.find("Student:") == std::string::npos &&
+		buffer.find("Teacher") == std::string::npos &&
+		buffer.find("Graduate:") == std::string::npos;
 }
 Human** Load(const std::string& filename, int& n)
 {
@@ -318,10 +360,10 @@ Human** Load(const std::string& filename, int& n)
 	std::ifstream fin(filename);
 	if (fin.is_open())
 	{
-		
+		 //1) Выичсляем размер файла(количество записей в файле) :
 		n = 0;
 		while (!fin.eof())
-		{
+		{/*
 			std::string buffer;
 			
 			std::getline(fin, buffer);	
@@ -332,23 +374,33 @@ Human** Load(const std::string& filename, int& n)
 				buffer.find("Teacher:") == std::string::npos &&
 				buffer.find("Graduate:") == std::string::npos
 				)continue;
+			n++;*/
+
+			std::string buffer;
+			//fin.getline(); //НЕ перегружен для объектов класса std::string
+			std::getline(fin, buffer);//читает все до конца строки
+			//move DST, SRC;
+			//strcat(DST, SRC);
+			if (NotAppropriteType(buffer))continue;
 			n++;
 		}
 		cout << "Количество записей в файле: " << n << endl;
-
+		//2) Выделяем память для группы:
 		group = new Human * [n] {};
-
-		
+		//3) Возвращаемся в начало файла, для того чтобы прочитать содержимое этого файла:
 		cout << "Позиция курсора на чтение: "  << fin.tellg() << endl;
 		fin.clear();
 		fin.seekg(0);
 		cout << "Позиция курсора на чтение: "  << fin.tellg() << endl;
-
-		for (int i = 0; !fin.eof(); i++)
+		//4) Читаем файл:
+		for (int i = 0; i<n; i++)
 		{
 			std::string type;
 			fin >> type;
-			group[i]=HumanFactory
+			if (NotAppropriteType(type))continue;
+			group[i] = HumanFactory(type);
+			if (group[i])
+				fin >> *group[i];
 		}
 
 		fin.close();
@@ -390,7 +442,7 @@ void main()
 	teacher.print();
 	cout << delimiter << endl;
 
-	Graduate graduate("Arkhipov", "Denis", 25, "automation", "ATPbz-321", 98, 95, " automated system turbine liquefier", "oxygen station");
+	Graduate graduate("Arkhipov", "Denis", 25, "automation", "ATPbz-321", 98, 95, " automated system turbine liquefier");
 	graduate.print();
 	cout << delimiter << endl;
 #endif // INHERITANCE
@@ -400,7 +452,7 @@ void main()
 	{
 		new Student("Pinkman", "Jessie", 20, "Chenistry", "WW_220", 95, 90),
 		new Teacher("White", "Walter", 50, "Chemistry", 25),
-		new Graduate("Arkhipov", "Denis", 25, "automation", "ATPbz-321", 98, 95, " automated system turbine liquefier", "oxygen station"),
+		new Graduate("Arkhipov", "Denis", 25, "automation", "ATPbz-321", 98, 95, " automated system turbine liquefier"),
 		new Student("Vercetti", "Tommy", 30, "Theft", "Vice", 97, 98),
 		new Teacher("Diaz", "Ricardo", 50, "Weapons distribution", 20)
 	};
